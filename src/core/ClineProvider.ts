@@ -4,12 +4,28 @@ import { getUri } from './webview/getUri';
 import { ExtensionMessage } from '../shared/ExtensionMessage';
 import { WebviewMessage } from '../shared/WebviewMessage';
 import OpenAI from 'openai';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 export class ClineProvider implements vscode.WebviewViewProvider {
 	public static readonly sideBarId = 'toy-cline.SidebarProvider';
 	public static readonly tabPanelId = 'toy-cline.TabPanelProvider';
 	private view?: vscode.WebviewView | vscode.WebviewPanel;
 	private openai: OpenAI;
+
+	private systemPrompt = `你是 Cline，一个专业的软件工程师助手。你可以使用以下工具来帮助用户完成任务：
+
+	工具列表:
+
+	1. read_file: 读取文件内容
+	   - 参数: path (文件路径)
+	   - XML 格式: <tool_use><tool_name>read_file</tool_name><path>文件路径</path></tool_use>
+
+	2. write_file: 写入文件内容
+	   - 参数: path (文件路径), content (文件内容)
+	   - XML 格式: <tool_use><tool_name>write_file</tool_name><path>文件路径</path><content>文件内容</content></tool_use>
+
+	请根据用户需求，合理使用工具。工具调用必须使用 XML 格式。`;
 
 	constructor(
 		private readonly context: vscode.ExtensionContext,
@@ -91,11 +107,24 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 							try {
 								const completion = await this.openai.chat.completions.create({
 									model: 'gpt-3.5-turbo',
-									messages: [{ role: 'user', content: userMessage }],
+									messages: [
+										{ role: 'system', content: this.systemPrompt },
+										{ role: 'user', content: userMessage }
+									],
 								});
-								const assistantMessage = completion.choices[0]?.message?.content || 'API 返回为空';
-								this.postMessageToWebview({ type: 'invoke', invoke: 'sendMessage', text: assistantMessage });
-								this.outputChannel.appendLine(`Assistant Message: ${assistantMessage}`);
+								let generatedText = completion.choices[0]?.message?.content || 'API 返回为空';
+
+								// 检测工具调用
+								if (generatedText.includes('<tool_use>')) {
+									const toolCall = this.parseToolCall(generatedText);
+									if (toolCall) {
+										const toolResult = await this.executeTool(toolCall);
+										generatedText = `${generatedText}\n\n工具执行结果:\n${toolResult}`;
+									}
+								}
+
+								this.postMessageToWebview({ type: 'invoke', invoke: 'sendMessage', text: generatedText });
+								this.outputChannel.appendLine(`Assistant Message: ${generatedText}`);
 							} catch (error) {
 								console.error('API 调用失败:', error);
 								this.outputChannel.appendLine(`API 调用失败: ${error}`);
@@ -108,6 +137,83 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 			null,
 			this.context.subscriptions
 		);
+	}
+
+	private parseToolCall(text: string) {
+		const toolUseRegex = /<tool_use>(.*?)<\/tool_use>/s;
+		const match = text.match(toolUseRegex);
+		if (!match) return null;
+
+		const toolContent = match[1];
+		const toolNameRegex = /<tool_name>(.*?)<\/tool_name>/;
+		const toolNameMatch = toolContent.match(toolNameRegex);
+		const toolName = toolNameMatch ? toolNameMatch[1].trim() : '';
+
+		const pathRegex = /<path>(.*?)<\/path>/;
+		const pathMatch = toolContent.match(pathRegex);
+		const filePath = pathMatch ? pathMatch[1].trim() : '';
+
+		const contentRegex = /<content>(.*?)<\/content>/;
+		const contentMatch = toolContent.match(contentRegex);
+		const fileContent = contentMatch ? contentMatch[1].trim() : '';
+
+		return {
+			tool_name: toolName,
+			path: filePath,
+			content: fileContent
+		};
+	}
+
+	private async executeTool(toolCall: any): Promise<string> {
+		switch (toolCall.tool_name) {
+			case 'read_file': {
+				const allowed = await vscode.window.showInformationMessage(
+					`Cline 想要读取文件: ${toolCall.path}, 是否允许?`,
+					'允许',
+					'拒绝'
+				);
+				if (allowed !== '允许') {
+					return '用户拒绝读取文件';
+				}
+				return this.readFileTool(toolCall.path);
+			}
+			case 'write_file': {
+				const allowed = await vscode.window.showInformationMessage(
+					`Cline 想要写入文件: ${toolCall.path}, 是否允许?`,
+					'允许',
+					'拒绝'
+				);
+				if (allowed !== '允许') {
+					return '用户拒绝写入文件';
+				}
+				return this.writeFileTool(toolCall.path, toolCall.content);
+			}
+			default:
+				return '未知的工具调用: ' + toolCall.tool_name;
+		}
+	}
+
+	private async readFileTool(filePath: string): Promise<string> {
+		try {
+			const content = await fs.readFile(filePath, 'utf-8');
+			return `文件内容:\n${content}`;
+		} catch (error: any) {
+			if (error.code === 'ENOENT') {
+				return `文件未找到: ${filePath}`;
+			} else {
+				return `读取文件失败: ${filePath}\n错误信息: ${error.message}`;
+			}
+		}
+	}
+
+	private async writeFileTool(filePath: string, content: string): Promise<string> {
+		try {
+			await fs.mkdir(path.dirname(filePath), { recursive: true });
+			await fs.writeFile(filePath, content, 'utf-8');
+			return `文件写入成功: ${filePath}`;
+		} catch (error: any) {
+			return `文件写入失败: ${filePath}\n错误信息: ${error.message}`;
+		}
 	}
 
 	private postMessageToWebview(message: ExtensionMessage) {
