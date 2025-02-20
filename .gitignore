@@ -7,3 +7,4 @@
 /repomix-output.txt
 /webview-ui/node_modules
 /webview-ui/build
+/.env

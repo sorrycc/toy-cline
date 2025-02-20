@@ -59,5 +59,9 @@
     "@vscode/test-electron": "^2.4.1",
     "prettier": "^3.5.1",
     "typescript": "^5.7.3"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "openai": "^4.85.2"
   }
 }

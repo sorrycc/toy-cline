@@ -1,36 +1,44 @@
 import React, { useState, useEffect } from 'react';
 import { vscode } from './utils/vscode';
 
+type Message = {
+	role: 'user' | 'assistant';
+	content: string;
+};
+
 function App() {
-	const [messages, setMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([
-		{ role: 'assistant', content: '你好！我是 Cline 玩具版助手。' }
+	const [messages, setMessages] = useState<Message[]>([
+		{ role: 'assistant', content: '你好！我是 Toy Cline 助手。' }
 	]);
 	const [inputValue, setInputValue] = useState('');
 
-	useEffect(() => {
-		// Send initial launch message
-		vscode.postMessage({ type: 'webviewDidLaunch' });
-
-		// Set up message listener
-		const messageListener = (event: MessageEvent) => {
-			const message = event.data;
-			if (message.type === 'invoke' && message.invoke === 'sendMessage' && message.text) {
-				setMessages(prevMessages => [...prevMessages, { role: 'assistant', content: message.text }]);
-			}
-		};
-
-		window.addEventListener('message', messageListener);
-		return () => window.removeEventListener('message', messageListener);
-	}, []);
-
 	const handleSendMessage = () => {
 		if (inputValue.trim()) {
-			const newMessage = { role: 'user' as const, content: inputValue };
-			setMessages(prevMessages => [...prevMessages, newMessage]);
+			const newMessage: Message = { role: 'user', content: inputValue };
+			setMessages([...messages, newMessage]);
 			vscode.postMessage({ type: 'invoke', invoke: 'sendMessage', text: inputValue });
 			setInputValue('');
 		}
 	};
+
+	useEffect(() => {
+		const messageListener = (event: MessageEvent<any>) => {
+			const message = event.data;
+			switch (message.type) {
+				case 'invoke':
+					if (message.invoke === 'sendMessage' && message.text) {
+						const assistantMessage: Message = { role: 'assistant', content: message.text };
+						setMessages(prevMessages => [...prevMessages, assistantMessage]);
+					}
+					break;
+			}
+		};
+
+		window.addEventListener('message', messageListener);
+		return () => {
+			window.removeEventListener('message', messageListener);
+		};
+	}, []);
 
 	return (
 		<div style={{ height: '100vh', display: 'flex', flexDirection: 'column' }}>
