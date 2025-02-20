@@ -1,0 +1,63 @@
+{
+  "name": "toy-cline",
+  "displayName": "toy-cline",
+  "description": "Toy version of Cline.",
+  "version": "0.0.1",
+  "private": true,
+  "engines": {
+    "vscode": "^1.97.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "toy-cline-ActivityBar",
+          "title": "Cline",
+          "icon": "assets/icons/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "toy-cline-ActivityBar": [
+        {
+          "type": "webview",
+          "id": "toy-cline.SidebarProvider",
+          "name": ""
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "toy-cline.helloWorld",
+        "title": "Hello World"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "compile": "pnpm run compile:extension && pnpm run compile:webview",
+    "compile:extension": "tsc -p ./",
+    "compile:webview": "pnpm --filter webview-ui run build",
+    "watch": "pnpm run watch:extension",
+    "watch:extension": "tsc -watch -p ./",
+    "watch:webview": "pnpm --filter webview-ui run start",
+    "pretest": "pnpm run compile",
+    "test": "vscode-test",
+    "format": "prettier --write \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\" \"webview-ui/src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\" \"webview-ui/src/**/*.{ts,tsx,js,jsx,json,css,scss,md}\""
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "20.x",
+    "@types/vscode": "^1.97.0",
+    "@vscode/test-cli": "^0.0.10",
+    "@vscode/test-electron": "^2.4.1",
+    "prettier": "^3.5.1",
+    "typescript": "^5.7.3"
+  }
+}
