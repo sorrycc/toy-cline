@@ -62,7 +62,19 @@ export class ClineProvider implements vscode.WebviewViewProvider {
 						break;
 					case 'invoke':
 						if (message.invoke === 'sendMessage') {
-							vscode.window.showInformationMessage(`Received message from webview: ${message.text}`);
+							// Log the received message
+							this.outputChannel.appendLine(`User Message: ${message.text}`);
+							
+							// Send a simple echo response back
+							const response = `我收到了你的消息: ${message.text}`;
+							this.postMessageToWebview({ 
+								type: 'invoke',
+								invoke: 'sendMessage',
+								text: response
+							});
+							
+							// Log the response
+							this.outputChannel.appendLine(`Assistant Message: ${response}`);
 						}
 						break;
 				}
